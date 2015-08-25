@@ -2,6 +2,7 @@ import re
 import os
 import sys
 import lxml.html as html
+import urllib3
 
 default_selectors_config = {
     'default': {
@@ -110,58 +111,24 @@ class SelectorValidator(object):
         return False
 
 
-# class SimpleSpider(Spider):
-#
-#     def __init__(self, *args, **kwargs):
-#         self.initial_urls = kwargs.pop('urls')
-#         self.selectors_config = kwargs.pop('selectors_config')
-#         self.url_validator = UrlValidator()
-#         super(SimpleSpider, self).__init__(*args, **kwargs)
-#
-#     def start_task_generator(self):
-#         """
-#         Process `self.initial_urls` list and `self.task_generator`
-#         method.  Generate first portion of tasks.
-#         """
-#         if self.initial_urls:
-#             for url in self.initial_urls:
-#                 if not self.url_validator.is_valid(url):
-#                     print('Could not resolve relative URL because url [{}] is not valid.\n'.format(url))
-#                     continue
-#                 self.add_task(Task('initial', url=url))
-#         self.task_generator_object = self.task_generator()
-#         self.task_generator_enabled = True
-#         # Initial call to task generator before spider has started working
-#         self.process_task_generator()
-#
-#     def task_initial(self, grab, task):
-#         yield Task('parse', grab=grab)
-#
-#     def task_parse(self, grab, task):
-#         writer = FileWriter(task.url)
-#         if not writer.was_writen:
-#             site = task.url.split('/')[2]
-#             validator = SelectorValidator(url=site, selector=self.selectors_config)
-#             settings_template = self.selectors_config.get(site) if validator.is_valid() \
-#                 else default_selectors_config.get('default')
-#             head_tag = settings_template.get('title')
-#             for elem in grab.doc.select(head_tag):
-#                 writer.write(elem._node.text_content())
-#             xpath_param_text = settings_template.get('text')
-#             xpath_param_link_text = '{}{}'.format(xpath_param_text, settings_template.get('link_text'))
-#             xpath_param_link = '{}{}'.format(xpath_param_link_text, settings_template.get('link'))
-#             for elem in grab.doc.select(xpath_param_text):
-#                 url_name_list = elem.select(xpath_param_link_text).selector_list
-#                 url_link_list = elem.select(xpath_param_link).selector_list
-#                 maping_url = zip(url_name_list, url_link_list)
-#                 article_element = elem._node.text_content()
-#                 for name, link in maping_url:
-#                     if name.text() in article_element:
-#                         name_index = article_element.index(name.text()) + len(name.text())
-#                         article_element = '{}[{}]{}'.format(article_element[:name_index], link.text(), article_element[name_index:])
-#                 format_maker = FormatTextBlock(article_element)
-#                 writer.write(format_maker.format())
-#         writer.destroy()
+class CleanData(object):
+
+    def __init__(self, url):
+        self.url = url
+
+    def get_encoding(self, headers):
+        if 'charset=' in headers.get('content-type'):
+            return headers.get('content-type').split('charset=')[-1]
+        return False
+
+    @property
+    def response(self):
+        http = urllib3.PoolManager()
+        request = http.request('GET', self.url)
+        encoding = self.get_encoding(request.headers)
+        if encoding:
+            return request.data.decode(encoding)
+        return request.data
 
 
 class Parser(object):
@@ -174,33 +141,28 @@ class Parser(object):
     def parse(self, url):
         writer = FileWriter(url)
         if not writer.was_writen:
-            page = html.parse(url)
-            root = page.getroot()
-            #-----------------------------
-            # get encoding
-            param = root.xpath('//meta[@http-equiv="Content-Type"]')[0].attrib['content']
-            coding = param.split('charset=')[1]
-            #-----------------------------
-
+            response_cleaner = CleanData(url=url)
+            response = response_cleaner.response
+            page = html.fromstring(response)
             site = url.split('/')[2]
             validator = SelectorValidator(url=site, selector=self.selectors_config)
             settings_template = self.selectors_config.get(site) if validator.is_valid() \
                 else default_selectors_config.get('default')
             head_tag = settings_template.get('title')
-            for elem in root.xpath(head_tag):
+            for elem in page.xpath(head_tag):
                 writer.write(elem.text_content())
             xpath_param_text = settings_template.get('text')
             xpath_param_link_text = '{}{}'.format(xpath_param_text, settings_template.get('link_text'))
             xpath_param_link = '{}{}'.format(xpath_param_link_text, settings_template.get('link'))
-            for elem in root.xpath(xpath_param_text):
+            for elem in page.xpath(xpath_param_text):
                 url_name_list = elem.xpath(xpath_param_link_text)
                 url_link_list = elem.xpath(xpath_param_link)
                 maping_url = zip(url_name_list, url_link_list)
                 article_element = elem.text_content()
                 for name, link in maping_url:
-                    if name.text() in article_element:
-                        name_index = article_element.index(name.text()) + len(name.text())
-                        article_element = '{}[{}]{}'.format(article_element[:name_index], link.text(), article_element[name_index:])
+                    if name.text_content() in article_element:
+                        name_index = article_element.index(name.text_content()) + len(name.text_content())
+                        article_element = '{}[{}]{}'.format(article_element[:name_index], link, article_element[name_index:])
                 format_maker = FormatTextBlock(article_element)
                 writer.write(format_maker.format())
         writer.destroy()
