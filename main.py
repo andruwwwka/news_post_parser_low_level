@@ -1,7 +1,6 @@
 import re
 import os
 import sys
-# from grab.spider import Spider, Task
 import lxml.html as html
 
 default_selectors_config = {
@@ -176,18 +175,24 @@ class Parser(object):
         writer = FileWriter(url)
         if not writer.was_writen:
             page = html.parse(url)
-            # root = page.get_root()
+            root = page.getroot()
+            #-----------------------------
+            # get encoding
+            param = root.xpath('//meta[@http-equiv="Content-Type"]')[0].attrib['content']
+            coding = param.split('charset=')[1]
+            #-----------------------------
+
             site = url.split('/')[2]
             validator = SelectorValidator(url=site, selector=self.selectors_config)
             settings_template = self.selectors_config.get(site) if validator.is_valid() \
                 else default_selectors_config.get('default')
             head_tag = settings_template.get('title')
-            for elem in page.xpath(head_tag):
+            for elem in root.xpath(head_tag):
                 writer.write(elem.text_content())
             xpath_param_text = settings_template.get('text')
             xpath_param_link_text = '{}{}'.format(xpath_param_text, settings_template.get('link_text'))
             xpath_param_link = '{}{}'.format(xpath_param_link_text, settings_template.get('link'))
-            for elem in page.xpath(xpath_param_text):
+            for elem in root.xpath(xpath_param_text):
                 url_name_list = elem.xpath(xpath_param_link_text)
                 url_link_list = elem.xpath(xpath_param_link)
                 maping_url = zip(url_name_list, url_link_list)

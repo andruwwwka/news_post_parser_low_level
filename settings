@@ -1,0 +1,23 @@
+{
+'lenta.ru':
+        {
+          'title': '//h1[@class="b-topic__title"]',
+          'text': '//div[@class="b-text clearfix"]//p',
+          'link_text': '/a',
+          'link': '/@href',
+        },
+'zory-msh.ru':
+        {
+          'title': '//h1[@class="b-object__detail__title"]',
+          'text': '//div[@class="b-block-text__text"]//p',
+          'link_text': '/a',
+          'link': '/@href',
+        },
+'ria.ru':
+        {
+          'title': '//h1[@class="article_header_title"]',
+          'text': '//div[@class="article_full_text clearfix"]//p',
+          'link_text': '/a',
+          'link': '/@href',
+        },
+}
