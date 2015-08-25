@@ -170,6 +170,9 @@ class Parser(object):
 
     def run(self):
         for url in self.initial_urls:
+            if not self.url_validator.is_valid(url):
+                print('Could not resolve relative URL because url [{}] is not valid.\n'.format(url))
+                continue
             self.parse(url)
         return True
 
